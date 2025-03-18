@@ -1,0 +1,120 @@
+{
+	"name": "pomodoro-timer",
+	"displayName": "Pomodoro Timer",
+	"description": "Um timer Pomodoro para VS Code",
+	"version": "0.0.1",
+	"publisher": "felipe-belotto",
+	"icon": "icon.png",
+	"engines": {
+		"vscode": "^1.98.0"
+	},
+
+	"categories": ["Other"],
+	"activationEvents": [
+		"onStartupFinished"
+	],
+	"main": "./dist/extension.js",
+	"contributes": {
+		"viewsContainers": {
+			"activitybar": [
+				{
+					"id": "pomodoro-timer",
+					"title": "Pomodoro Timer",
+					"icon": "./icon.png"
+				}
+			]
+		},
+		"views": {
+			"pomodoro-timer": [
+				{
+					"id": "pomodoro-timer.view",
+					"name": "Pomodoro Timer",
+					"type": "webview"
+				}
+			]
+		},
+		"commands": [
+			{
+				"command": "pomodoro-timer.start",
+				"title": "Iniciar Timer"
+			},
+			{
+				"command": "pomodoro-timer.pause",
+				"title": "Pausar Timer"
+			},
+			{
+				"command": "pomodoro-timer.openSettings",
+				"title": "Abrir Configurações"
+			}
+		],
+		"configuration": {
+			"title": "Pomodoro Timer",
+			"properties": {
+				"pomodoro-timer.workTime": {
+					"type": "number",
+					"default": 25,
+					"description": "Tempo de trabalho em minutos"
+				},
+				"pomodoro-timer.breakTime": {
+					"type": "number",
+					"default": 5,
+					"description": "Tempo de descanso curto em minutos"
+				},
+				"pomodoro-timer.longBreakTime": {
+					"type": "number",
+					"default": 15,
+					"description": "Tempo de descanso longo em minutos"
+				},
+				"pomodoro-timer.cyclesBeforeLongBreak": {
+					"type": "number",
+					"default": 4,
+					"description": "Número de ciclos antes de um descanso longo"
+				},
+				"pomodoro-timer.showNotifications": {
+					"type": "boolean",
+					"default": true,
+					"description": "Mostrar notificações do sistema"
+				},
+				"pomodoro-timer.customColors": {
+					"type": "object",
+					"default": {},
+					"description": "Cores personalizadas para o timer",
+					"properties": {
+						"timerBackground": {
+							"type": "string",
+							"description": "Cor de fundo do timer"
+						},
+						"timerText": {
+							"type": "string",
+							"description": "Cor do texto do timer"
+						},
+						"buttonBackground": {
+							"type": "string",
+							"description": "Cor de fundo dos botões"
+						},
+						"buttonText": {
+							"type": "string",
+							"description": "Cor do texto dos botões"
+						}
+					}
+				}
+			}
+		}
+	},
+	"scripts": {
+		"vscode:prepublish": "npm run package",
+		"compile": "node ./esbuild.js",
+		"package": "node ./esbuild.js --minify",
+		"watch": "node ./esbuild.js --watch",
+		"lint": "eslint src --ext ts"
+	},
+	"devDependencies": {
+		"@types/node": "^16.18.34",
+		"@types/vscode": "^1.73.0",
+		"@typescript-eslint/eslint-plugin": "^6.7.0",
+		"@typescript-eslint/parser": "^6.7.0",
+		"esbuild": "^0.19.2",
+		"eslint": "^8.26.0",
+		"typescript": "^5.2.2"
+	}
+}
