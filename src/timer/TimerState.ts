@@ -544,6 +544,23 @@ export class TimerState {
   }
 
   /**
+   * Reset cycles counter to zero
+   */
+  public async resetCycles(): Promise<void> {
+    this.currentCycle = 0;
+    await this.saveState();
+
+    vscode.window.showInformationMessage(
+      "Ciclos de Pomodoro resetados com sucesso!"
+    );
+
+    this.emitEvent(TimerEventType.STATE_CHANGED, {
+      phase: this.phase,
+      cycle: this.currentCycle,
+    });
+  }
+
+  /**
    * Get timer session history for the past week
    */
   public async getWeeklyStats() {

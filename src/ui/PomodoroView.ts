@@ -175,6 +175,10 @@ export class PomodoroView implements vscode.WebviewViewProvider {
         case "resetTimer":
           await this._timerState.reset();
           break;
+        case "resetCycles":
+          await this._timerState.resetCycles();
+          this.updateUI();
+          break;
         case "toggleMode":
           await this._timerState.switchPhase();
           break;
@@ -188,9 +192,6 @@ export class PomodoroView implements vscode.WebviewViewProvider {
             "pomodoro-timer"
           );
           break;
-        case "showStats":
-          this.showStatisticsView();
-          break;
       }
     });
 
@@ -203,177 +204,10 @@ export class PomodoroView implements vscode.WebviewViewProvider {
   }
 
   /**
-   * Show statistics view
-   */
-  private async showStatisticsView() {
-    const weeklyStats = await this._timerState.getWeeklyStats();
-    const statsPanel = vscode.window.createWebviewPanel(
-      "pomodoroStats",
-      "Pomodoro Statistics",
-      vscode.ViewColumn.One,
-      {
-        enableScripts: true,
-      }
-    );
-
-    statsPanel.webview.html = this._getStatsHtmlForWebview(weeklyStats);
-  }
-
-  /**
-   * Generate HTML for statistics view
-   */
-  private _getStatsHtmlForWebview(weeklyStats: any[]) {
-    // Create chart data for stats
-    const dates = weeklyStats.map((stat) => stat.date);
-    const cyclesData = weeklyStats.map((stat) => stat.completedWorkCycles);
-    const workTimeData = weeklyStats.map((stat) => stat.totalWorkTime);
-
-    return `<!DOCTYPE html>
-      <html lang="pt-BR">
-      <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Pomodoro Statistics</title>
-        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-        <style>
-          body {
-            font-family: var(--vscode-font-family);
-            padding: 20px;
-            color: var(--vscode-foreground);
-          }
-          .chart-container {
-            width: 100%;
-            max-width: 800px;
-            margin: 20px auto;
-          }
-          h2 {
-            text-align: center;
-            margin-bottom: 20px;
-          }
-          .stats-summary {
-            display: flex;
-            justify-content: space-around;
-            margin-bottom: 30px;
-            flex-wrap: wrap;
-          }
-          .stat-card {
-            background-color: var(--vscode-editor-background);
-            border-radius: 4px;
-            padding: 15px;
-            min-width: 200px;
-            margin: 10px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-          }
-          .stat-title {
-            font-size: 14px;
-            color: var(--vscode-descriptionForeground);
-            margin-bottom: 8px;
-          }
-          .stat-value {
-            font-size: 24px;
-            font-weight: bold;
-          }
-        </style>
-      </head>
-      <body>
-        <h2>Pomodoro Statistics</h2>
-        
-        <div class="stats-summary">
-          <div class="stat-card">
-            <div class="stat-title">Total Cycles</div>
-            <div class="stat-value">${weeklyStats.reduce(
-              (sum, stat) => sum + stat.completedWorkCycles,
-              0
-            )}</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-title">Total Focus Time</div>
-            <div class="stat-value">${weeklyStats.reduce(
-              (sum, stat) => sum + stat.totalWorkTime,
-              0
-            )} min</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-title">Average Cycles/Day</div>
-            <div class="stat-value">${(
-              weeklyStats.reduce(
-                (sum, stat) => sum + stat.completedWorkCycles,
-                0
-              ) / Math.max(1, weeklyStats.length)
-            ).toFixed(1)}</div>
-          </div>
-        </div>
-        
-        <div class="chart-container">
-          <canvas id="cyclesChart"></canvas>
-        </div>
-        
-        <div class="chart-container">
-          <canvas id="timeChart"></canvas>
-        </div>
-        
-        <script>
-          // Create charts
-          const ctx1 = document.getElementById('cyclesChart').getContext('2d');
-          const ctx2 = document.getElementById('timeChart').getContext('2d');
-          
-          new Chart(ctx1, {
-            type: 'bar',
-            data: {
-              labels: ${JSON.stringify(dates)},
-              datasets: [{
-                label: 'Completed Cycles',
-                data: ${JSON.stringify(cyclesData)},
-                backgroundColor: 'rgba(75, 192, 192, 0.7)',
-                borderColor: 'rgba(75, 192, 192, 1)',
-                borderWidth: 1
-              }]
-            },
-            options: {
-              responsive: true,
-              scales: {
-                y: {
-                  beginAtZero: true,
-                  ticks: {
-                    precision: 0
-                  }
-                }
-              }
-            }
-          });
-          
-          new Chart(ctx2, {
-            type: 'line',
-            data: {
-              labels: ${JSON.stringify(dates)},
-              datasets: [{
-                label: 'Focus Time (minutes)',
-                data: ${JSON.stringify(workTimeData)},
-                fill: false,
-                borderColor: 'rgba(153, 102, 255, 1)',
-                tension: 0.1
-              }]
-            },
-            options: {
-              responsive: true,
-              scales: {
-                y: {
-                  beginAtZero: true
-                }
-              }
-            }
-          });
-        </script>
-      </body>
-      </html>`;
-  }
-
-  /**
    * Generate HTML for the main Pomodoro webview
    */
   private _getHtmlForWebview(webview: vscode.Webview) {
     const config = this._timerState.getConfig();
-    const colors = config.customColors;
     const phase = this._timerState.getCurrentPhase();
     const currentCycle = this._timerState.getCurrentCycle();
     const cyclesBeforeLongBreak = config.cyclesBeforeLongBreak;
@@ -442,11 +276,10 @@ export class PomodoroView implements vscode.WebviewViewProvider {
                     padding: 4px;
                     display: flex;
                     align-items: center;
-                    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                    transition: transform 0.3s ease;
                 }
                 .settings-button:hover, .restart-button:hover {
                     opacity: 0.8;
-                    transform: scale(1.1);
                 }
                 .settings-button.rotate, .restart-button.rotate {
                     transform: rotate(360deg);
@@ -458,13 +291,12 @@ export class PomodoroView implements vscode.WebviewViewProvider {
                     background-color: var(--button-bg);
                     color: var(--button-text);
                     cursor: pointer;
-                    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+                    transition: transform 0.2s ease;
                     border: 1px solid transparent;
                 }
                 .mode-indicator:hover {
                     opacity: 0.9;
                     border-color: var(--accent-color);
-                    transform: translateY(-1px);
                 }
                 .cycle-indicator {
                     display: flex;
@@ -491,13 +323,13 @@ export class PomodoroView implements vscode.WebviewViewProvider {
                     min-width: 1.2ch;
                     text-align: center;
                 }
-                .timer-display[data-phase="0"] {
+                .timer-display[data-phase="work"] {
                     color: #ffffff;
                 }
-                .timer-display[data-phase="1"] {
+                .timer-display[data-phase="break"] {
                     color: #8bd5ca;
                 }
-                .timer-display[data-phase="2"] {
+                .timer-display[data-phase="long_break"] {
                     color: #a6da95;
                 }
                 .buttons {
@@ -521,15 +353,13 @@ export class PomodoroView implements vscode.WebviewViewProvider {
                     display: flex;
                     align-items: center;
                     justify-content: center;
-                    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+                    transition: transform 0.1s ease, opacity 0.1s ease;
                 }
                 .btn:hover {
                     opacity: 0.9;
-                    transform: translateY(-1px);
-                    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
                 }
                 .btn:active {
-                    transform: translateY(0);
+                    transform: scale(0.98);
                 }
                 /* Dropdown styles */
                 .dropdown {
@@ -548,7 +378,8 @@ export class PomodoroView implements vscode.WebviewViewProvider {
                     border-radius: 4px;
                     border: 1px solid var(--vscode-widget-border);
                 }
-                .dropdown:hover .dropdown-content {
+                /* Menu aparece apenas quando a classe 'show' é adicionada */
+                .dropdown-content.show {
                     display: block;
                 }
                 .dropdown-content a {
@@ -582,15 +413,6 @@ export class PomodoroView implements vscode.WebviewViewProvider {
                     font-size: 14px;
                     font-weight: 500;
                     color: var(--vscode-foreground);
-                }
-                .stats-view-btn {
-                    background: none;
-                    border: none;
-                    color: var(--vscode-textLink-foreground);
-                    cursor: pointer;
-                    font-size: 12px;
-                    padding: 2px 8px;
-                    text-decoration: underline;
                 }
                 .stats-grid {
                     display: grid;
@@ -637,11 +459,11 @@ export class PomodoroView implements vscode.WebviewViewProvider {
                         <button class="settings-button" id="menu-button" title="Menu">
                             <i data-lucide="more-vertical"></i>
                         </button>
-                        <div class="dropdown-content">
+                        <div class="dropdown-content" id="dropdown-content">
                             <a href="#" id="toggle-mode">Alternar Modo</a>
                             <a href="#" id="reset-timer">Resetar Timer</a>
+                            <a href="#" id="reset-cycles">Resetar Ciclos</a>
                             <a href="#" id="reset-stats">Resetar Estatísticas</a>
-                            <a href="#" id="view-stats">Ver Estatísticas</a>
                             <a href="#" id="open-settings">Configurações</a>
                         </div>
                     </div>
@@ -658,7 +480,6 @@ export class PomodoroView implements vscode.WebviewViewProvider {
             <div class="stats-container">
                 <div class="stats-header">
                     <div class="stats-title">Estatísticas de Hoje</div>
-                    <button class="stats-view-btn" id="stats-view-btn">Ver Detalhes</button>
                 </div>
                 <div class="stats-grid">
                     <div class="stat-item">
@@ -683,6 +504,9 @@ export class PomodoroView implements vscode.WebviewViewProvider {
             </div>
             <script>
                 const vscode = acquireVsCodeApi();
+                let menuOpen = false;
+                
+                // Elementos do DOM
                 const hours = document.getElementById("hours");
                 const minutes = document.getElementById("minutes");
                 const seconds = document.getElementById("seconds");
@@ -694,56 +518,68 @@ export class PomodoroView implements vscode.WebviewViewProvider {
                 const totalWorkTime = document.getElementById("total-work-time");
                 const totalBreakTime = document.getElementById("total-break-time");
                 const menuButton = document.getElementById("menu-button");
-                const dropdownContent = document.querySelector(".dropdown-content");
+                const dropdownContent = document.getElementById("dropdown-content");
 
                 // Initialize Lucide icons
-                lucide.createIcons();
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons();
+                } else {
+                    // Carregar o Lucide se não estiver disponível
+                    const script = document.createElement('script');
+                    script.src = "https://unpkg.com/lucide@latest";
+                    script.onload = function() {
+                        if (typeof lucide !== 'undefined') {
+                            lucide.createIcons();
+                        }
+                    };
+                    document.head.appendChild(script);
+                }
+
+                // Toggle do menu dropdown
+                function toggleDropdown(force) {
+                    if (force !== undefined) {
+                        menuOpen = force;
+                    } else {
+                        menuOpen = !menuOpen;
+                    }
+                    
+                    if (menuOpen) {
+                        dropdownContent.classList.add("show");
+                    } else {
+                        dropdownContent.classList.remove("show");
+                    }
+                }
 
                 // Handle dropdown menu display
                 menuButton.addEventListener("click", (e) => {
                     e.stopPropagation();
-                    dropdownContent.style.display = dropdownContent.style.display === "block" ? "none" : "block";
+                    toggleDropdown();
                 });
 
                 // Close dropdown when clicking outside
-                document.addEventListener("click", () => {
-                    dropdownContent.style.display = "none";
+                document.addEventListener("click", (e) => {
+                    if (menuOpen && e.target !== menuButton && !dropdownContent.contains(e.target)) {
+                        toggleDropdown(false);
+                    }
                 });
 
                 // Setup menu items
-                document.getElementById("toggle-mode").addEventListener("click", (e) => {
-                    e.preventDefault();
-                    vscode.postMessage({ command: "toggleMode" });
-                    dropdownContent.style.display = "none";
-                });
+                function setupMenuItem(id, command) {
+                    const element = document.getElementById(id);
+                    if (element) {
+                        element.addEventListener("click", (e) => {
+                            e.preventDefault();
+                            vscode.postMessage({ command });
+                            toggleDropdown(false);
+                        });
+                    }
+                }
                 
-                document.getElementById("reset-timer").addEventListener("click", (e) => {
-                    e.preventDefault();
-                    vscode.postMessage({ command: "resetTimer" });
-                    dropdownContent.style.display = "none";
-                });
-                
-                document.getElementById("reset-stats").addEventListener("click", (e) => {
-                    e.preventDefault();
-                    vscode.postMessage({ command: "resetStatistics" });
-                    dropdownContent.style.display = "none";
-                });
-                
-                document.getElementById("view-stats").addEventListener("click", (e) => {
-                    e.preventDefault();
-                    vscode.postMessage({ command: "showStats" });
-                    dropdownContent.style.display = "none";
-                });
-                
-                document.getElementById("open-settings").addEventListener("click", (e) => {
-                    e.preventDefault();
-                    vscode.postMessage({ command: "openSettings" });
-                    dropdownContent.style.display = "none";
-                });
-                
-                document.getElementById("stats-view-btn").addEventListener("click", () => {
-                    vscode.postMessage({ command: "showStats" });
-                });
+                setupMenuItem("toggle-mode", "toggleMode");
+                setupMenuItem("reset-timer", "resetTimer");
+                setupMenuItem("reset-cycles", "resetCycles");
+                setupMenuItem("reset-stats", "resetStatistics");
+                setupMenuItem("open-settings", "openSettings");
 
                 window.addEventListener("message", (event) => {
                     const message = event.data;
